@@ -323,6 +323,16 @@ async function confirmChallan(id, user, res) {
 
 app.post('/api/challans/:id/confirm', auth, roles('admin', 'sales'), (req, res) => confirmChallan(req.params.id, req.user, res));
 
+app.post('/api/challans/:id/cancel', auth, roles('admin', 'sales'), async (req, res) => {
+  const { data: challan } = await supabase.from('sales_challans').select('*').eq('id', req.params.id).maybeSingle();
+  if (!challan) return res.status(404).json({ error: 'Challan not found' });
+  if (challan.status !== 'draft') return res.status(400).json({ error: 'Only draft challans can be cancelled' });
+
+  const { data, error } = await supabase.from('sales_challans').update({ status: 'cancelled' }).eq('id', req.params.id).select().maybeSingle();
+  if (error) return fail(res, error);
+  res.json(data);
+});
+
 // Client fallback routing (for standalone node server)
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
 

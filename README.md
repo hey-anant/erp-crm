@@ -1,46 +1,62 @@
 # ERP-CRM Operations Portal
 
-A modern full-stack ERP & CRM web application designed for wholesale, distribution, and retail operations. The portal covers customer CRM, inventory tracking, stock movements, and sales challan dispatch workflows.
-
-## Features
-
-- **JWT Authentication & RBAC**: Admin, Sales, Warehouse, and Accounts roles.
-- **Customer CRM**: Lead management, search, categorization, and follow-up notes.
-- **Inventory Control**: Opening stock, min-stock alerts, warehouse locations, and audit logs.
-- **Sales Challans**: Draft & Confirmed dispatch orders with price snapshots.
-- **Automated Stock Sync**: Dispatches automatically validate and reduce available inventory.
-- **Responsive Interface**: Clean desktop and mobile workspace.
+A modern full-stack ERP & CRM web application designed for wholesale, distribution, and retail operations. The portal covers customer CRM, inventory tracking, stock movements audit log, and sales challan dispatch workflows.
 
 ---
 
-## Test Accounts
+##  Core Features (Case Study Compliant)
+
+- **JWT Authentication & RBAC**: Admin, Sales, Warehouse, and Accounts roles with permissions.
+- **Customer CRM**:
+  - Add, Edit, and Search customers.
+  - Customer categorization: Retail, Wholesale, Distributor.
+  - Status pipeline: Lead, Active, Inactive.
+  - Customer details popup modal with follow-up history and new note logging.
+- **Product & Inventory Management**:
+  - Add & Edit products with SKU, Unit Price, Opening Stock, Min-Stock Alert, and Warehouse Location.
+  - Low-stock visual alerts and dashboard notifications.
+  - **Stock Movement Log**: Real-time audit history of every stock change (+/- quantity, IN/OUT type, reason, user, timestamp).
+  - **Adjust Stock Action**: Manual stock adjustments for shipments received, damages, or audit reconciliations.
+- **Sales Challans Dispatch Flow**:
+  - Auto-generated Challan Number.
+  - Customer selection with multi-product line items and quantity selection.
+  - Product price & SKU snapshotting at order time.
+  - Save as **Draft** or **Confirmed**.
+  - **Confirm Dispatch**: Automatically validates stock and records `OUT` stock movements to deduct warehouse inventory.
+  - **Cancel Challan**: Cancel draft orders.
+  - **Challan Detail Modal**: Detailed breakdown of line items, unit prices, and quantities.
+
+---
+
+## 👥 Test Accounts
 
 All demo accounts use password: `password123`
 
-- `admin@northstar.com` (Administrator)
-- `sales@northstar.com` (Sales Executive)
-- `warehouse@northstar.com` (Warehouse Manager)
-- `accounts@northstar.com` (Accounts)
+| Role | Email | Permissions |
+| :--- | :--- | :--- |
+| **Admin** | `admin@northstar.com` | Full Operations (Customers, Inventory, Challans) |
+| **Sales** | `sales@northstar.com` | CRM Management, Create, Confirm & Cancel Challans |
+| **Warehouse** | `warehouse@northstar.com` | Product Catalog, Adjust Stock, Movement Audit Logs |
+| **Accounts** | `accounts@northstar.com` | Read-only Operations View |
 
 ---
 
-## Supabase Database Setup
+## 🗄️ Database Setup (Supabase PostgreSQL)
 
-1. Create a project at [supabase.com](https://supabase.com).
-2. Open the **SQL Editor** in your Supabase dashboard.
-3. Run the schema migration found in:
+1. Open your [Supabase Dashboard](https://supabase.com).
+2. Run the SQL schema in **SQL Editor**:
    `supabase/migrations/20260902091826_create_erp_crm_schema.sql`
-4. Copy your **Project URL** and **Anon Public Key** from **Settings → API**.
+3. Copy **Project URL** and **anon public key** into `.env`.
 
 ---
 
-## Local Development
+## 🚀 Local Development
 
 1. Install dependencies:
    ```bash
    npm install
    ```
-2. Copy `.env.example` to `.env` and fill in your Supabase credentials:
+2. Configure `.env`:
    ```env
    VITE_SUPABASE_URL=https://your-project.supabase.co
    VITE_SUPABASE_ANON_KEY=your-anon-key
@@ -59,15 +75,19 @@ All demo accounts use password: `password123`
 
 ---
 
-## Vercel Deployment
+## 📄 Postman Collection & API Documentation
 
-This project is pre-configured for seamless 1-click deployment to **Vercel** with full-stack support (Vite Static Frontend + Express Serverless API via `api/index.js` & `vercel.json`):
+A pre-configured Postman Collection is included in the project root:
+- [`postman_collection.json`](file:///c:/Users/anant/Downloads/erp-crm-main/postman_collection.json)
 
-1. Push this repository to GitHub.
-2. Go to [vercel.com](https://vercel.com) and click **Add New Project**.
-3. Import your repository.
-4. Add the following **Environment Variables** in the Vercel project settings:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
-   - `JWT_SECRET`
-5. Click **Deploy**.
+Import this JSON into Postman to test all Authentication, Customer, Product, Stock Movement, and Sales Challan endpoints with automated JWT token handling.
+
+---
+
+## 🌐 Vercel Deployment
+
+Pre-configured with [`vercel.json`](file:///c:/Users/anant/Downloads/erp-crm-main/vercel.json) and [`api/index.js`](file:///c:/Users/anant/Downloads/erp-crm-main/api/index.js):
+1. Push code to GitHub repository.
+2. Import project in Vercel.
+3. Set environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `JWT_SECRET`.
+4. Click **Deploy**.

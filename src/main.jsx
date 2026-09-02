@@ -155,8 +155,8 @@ function Sidebar({ page, setPage, user, logout }) {
   const navItems = [
     ['overview', 'Overview', '⌂'],
     ['customers', 'Customers', '◉'],
-    ['inventory', 'Inventory', '▦'],
-    ['challans', 'Sales challans', '◫']
+    ['inventory', 'Inventory & Stock', '▦'],
+    ['challans', 'Sales Challans', '◫']
   ];
 
   return (
@@ -300,6 +300,7 @@ function Customers({ user }) {
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState(null);
   const [selected, setSelected] = useState(null);
   const canEdit = ['admin', 'sales'].includes(user.role);
 
@@ -314,8 +315,19 @@ function Customers({ user }) {
   const save = async (event) => {
     event.preventDefault();
     const body = Object.fromEntries(new FormData(event.target));
-    await api('/customers', { method: 'POST', body: JSON.stringify(body) });
-    setShowForm(false);
+    if (editingCustomer) {
+      await api(`/customers/${editingCustomer.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body)
+      });
+      setEditingCustomer(null);
+    } else {
+      await api('/customers', {
+        method: 'POST',
+        body: JSON.stringify(body)
+      });
+      setShowForm(false);
+    }
     load();
   };
 
@@ -328,7 +340,7 @@ function Customers({ user }) {
           <p className="muted">Build relationships that last.</p>
         </div>
         {canEdit && (
-          <button className="button primary" onClick={() => setShowForm(true)}>
+          <button className="button primary" onClick={() => { setEditingCustomer(null); setShowForm(true); }}>
             + Add customer
           </button>
         )}
@@ -346,33 +358,39 @@ function Customers({ user }) {
         <span className="result-count">{customers.length} customers</span>
       </div>
 
-      {showForm && (
+      {(showForm || editingCustomer) && (
         <div className="panel form-panel">
           <form onSubmit={save}>
             <div className="form-header">
-              <h3>New customer</h3>
-              <button type="button" className="icon-button" onClick={() => setShowForm(false)}>×</button>
+              <h3>{editingCustomer ? `Edit Customer: ${editingCustomer.name}` : 'New customer'}</h3>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => { setShowForm(false); setEditingCustomer(null); }}
+              >
+                ×
+              </button>
             </div>
             <div className="form-grid">
               <label>
                 Name *
-                <input name="name" required />
+                <input name="name" required defaultValue={editingCustomer?.name || ''} />
               </label>
               <label>
                 Mobile *
-                <input name="mobile" required />
+                <input name="mobile" required defaultValue={editingCustomer?.mobile || ''} />
               </label>
               <label>
                 Email
-                <input name="email" type="email" />
+                <input name="email" type="email" defaultValue={editingCustomer?.email || ''} />
               </label>
               <label>
                 Business name
-                <input name="business_name" />
+                <input name="business_name" defaultValue={editingCustomer?.business_name || ''} />
               </label>
               <label>
                 Customer type
-                <select name="customer_type" defaultValue="retail">
+                <select name="customer_type" defaultValue={editingCustomer?.customer_type || 'retail'}>
                   <option value="retail">Retail</option>
                   <option value="wholesale">Wholesale</option>
                   <option value="distributor">Distributor</option>
@@ -380,7 +398,7 @@ function Customers({ user }) {
               </label>
               <label>
                 Status
-                <select name="status" defaultValue="lead">
+                <select name="status" defaultValue={editingCustomer?.status || 'lead'}>
                   <option value="lead">Lead</option>
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
@@ -388,26 +406,32 @@ function Customers({ user }) {
               </label>
               <label>
                 Follow-up date
-                <input name="follow_up_date" type="date" />
+                <input name="follow_up_date" type="date" defaultValue={editingCustomer?.follow_up_date || ''} />
               </label>
               <label>
                 GST number
-                <input name="gst_number" />
+                <input name="gst_number" defaultValue={editingCustomer?.gst_number || ''} />
               </label>
               <label className="wide">
                 Address
-                <input name="address" />
+                <input name="address" defaultValue={editingCustomer?.address || ''} />
               </label>
               <label className="wide">
                 Notes
-                <textarea name="notes" rows="3"></textarea>
+                <textarea name="notes" rows="3" defaultValue={editingCustomer?.notes || ''}></textarea>
               </label>
             </div>
             <div className="form-actions">
-              <button type="button" className="button" onClick={() => setShowForm(false)}>
+              <button
+                type="button"
+                className="button"
+                onClick={() => { setShowForm(false); setEditingCustomer(null); }}
+              >
                 Cancel
               </button>
-              <button className="button primary">Save customer</button>
+              <button className="button primary">
+                {editingCustomer ? 'Update customer' : 'Save customer'}
+              </button>
             </div>
           </form>
         </div>
@@ -422,7 +446,7 @@ function Customers({ user }) {
               <th>Status</th>
               <th>Follow-up</th>
               <th>Contact</th>
-              <th></th>
+              <th style={{ textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -446,9 +470,19 @@ function Customers({ user }) {
                 </td>
                 <td>{customer.mobile}</td>
                 <td>
-                  <button className="text-button" onClick={() => setSelected(customer)}>
-                    View
-                  </button>
+                  <div className="table-actions">
+                    <button className="text-button" onClick={() => setSelected(customer)}>
+                      View
+                    </button>
+                    {canEdit && (
+                      <button
+                        className="text-button"
+                        onClick={() => { setShowForm(false); setEditingCustomer(customer); }}
+                      >
+                        Edit
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -457,12 +491,19 @@ function Customers({ user }) {
         {!customers.length && <Empty text="No customers yet" />}
       </div>
 
-      {selected && <Detail customer={selected} close={() => setSelected(null)} />}
+      {selected && (
+        <CustomerDetail
+          customer={selected}
+          canEdit={canEdit}
+          onEdit={() => { setSelected(null); setEditingCustomer(selected); }}
+          close={() => setSelected(null)}
+        />
+      )}
     </>
   );
 }
 
-function Detail({ customer, close }) {
+function CustomerDetail({ customer, canEdit, onEdit, close }) {
   const [note, setNote] = useState('');
   const [followUps, setFollowUps] = useState(customer.follow_ups || []);
 
@@ -489,172 +530,417 @@ function Detail({ customer, close }) {
         <div className="detail-grid">
           <div><span>Business</span><b>{customer.business_name || '—'}</b></div>
           <div><span>Mobile</span><b>{customer.mobile}</b></div>
-          <div><span>Type</span><b>{label(customer.customer_type)}</b></div>
+          <div><span>Email</span><b>{customer.email || '—'}</b></div>
+          <div><span>GST Number</span><b>{customer.gst_number || '—'}</b></div>
+          <div><span>Customer Type</span><b>{label(customer.customer_type)}</b></div>
           <div><span>Status</span><b>{label(customer.status)}</b></div>
+          <div style={{ gridColumn: 'span 2' }}><span>Address</span><b>{customer.address || '—'}</b></div>
+          {customer.notes && <div style={{ gridColumn: 'span 2' }}><span>Notes</span><b>{customer.notes}</b></div>}
         </div>
+
+        {canEdit && (
+          <div style={{ marginBottom: '16px' }}>
+            <button className="button" onClick={onEdit}>✏ Edit details</button>
+          </div>
+        )}
+
         <hr />
-        <h3>Follow-up notes</h3>
+        <h3>Follow-up history</h3>
         {followUps.map((item) => (
           <div className="note" key={item.id}>
             <b>{item.note}</b>
-            <span>{new Date(item.created_at).toLocaleDateString()}</span>
+            <span>{new Date(item.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
           </div>
         ))}
-        <div className="note-entry">
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Add a note…"
-          />
-          <button className="button primary" onClick={addNote}>
-            Add note
-          </button>
-        </div>
+        {!followUps.length && <p className="muted" style={{ fontSize: '12px' }}>No follow-up notes recorded yet.</p>}
+
+        {canEdit && (
+          <div className="note-entry">
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Add a new follow-up note…"
+            />
+            <button className="button primary" onClick={addNote}>
+              Add note
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// ── Inventory Component ──────────────────────────────────────
+// ── Inventory & Stock Module ─────────────────────────────────
 function Inventory({ user }) {
+  const [tab, setTab] = useState('products'); // 'products' | 'movements'
   const [products, setProducts] = useState([]);
+  const [movements, setMovements] = useState([]);
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [showAdjustModal, setShowAdjustModal] = useState(false);
+  const [adjustTarget, setAdjustTarget] = useState(null);
+
   const canEdit = ['admin', 'warehouse'].includes(user.role);
 
-  const load = () => {
+  const loadProducts = () => {
     api(`/products?search=${encodeURIComponent(search)}`)
       .then(setProducts)
       .catch(console.error);
   };
 
-  useEffect(load, [search]);
+  const loadMovements = () => {
+    api('/stock-movements')
+      .then(setMovements)
+      .catch(console.error);
+  };
 
-  const save = async (event) => {
+  useEffect(() => {
+    if (tab === 'products') loadProducts();
+    if (tab === 'movements') loadMovements();
+  }, [search, tab]);
+
+  const saveProduct = async (event) => {
     event.preventDefault();
-    await api('/products', {
+    const body = Object.fromEntries(new FormData(event.target));
+    if (editingProduct) {
+      await api(`/products/${editingProduct.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body)
+      });
+      setEditingProduct(null);
+    } else {
+      await api('/products', {
+        method: 'POST',
+        body: JSON.stringify(body)
+      });
+      setShowForm(false);
+    }
+    loadProducts();
+  };
+
+  const recordMovement = async (event) => {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    const productId = formData.get('product_id');
+    const movement_type = formData.get('movement_type');
+    const quantity_change = Number(formData.get('quantity_change'));
+    const reason = formData.get('reason');
+
+    await api(`/products/${productId}/movements`, {
       method: 'POST',
-      body: JSON.stringify(Object.fromEntries(new FormData(event.target)))
+      body: JSON.stringify({ movement_type, quantity_change, reason })
     });
-    setShowForm(false);
-    load();
+
+    setShowAdjustModal(false);
+    setAdjustTarget(null);
+    loadProducts();
+    if (tab === 'movements') loadMovements();
   };
 
   return (
     <>
       <div className="page-heading">
         <div>
-          <div className="eyebrow">WAREHOUSE CONTROL</div>
+          <div className="eyebrow">WAREHOUSE & STOCK CONTROL</div>
           <h1>Inventory</h1>
-          <p className="muted">Know what’s available before it moves.</p>
+          <p className="muted">Track catalog products, real-time stock levels, and audit logs.</p>
         </div>
         {canEdit && (
-          <button className="button primary" onClick={() => setShowForm(true)}>
-            + Add product
-          </button>
+          <div className="header-actions">
+            <button className="button" onClick={() => { setAdjustTarget(null); setShowAdjustModal(true); }}>
+              ⇄ Adjust stock
+            </button>
+            <button className="button primary" onClick={() => { setEditingProduct(null); setShowForm(true); }}>
+              + Add product
+            </button>
+          </div>
         )}
       </div>
 
-      <div className="toolbar">
-        <div className="search">
-          ⌕
-          <input
-            placeholder="Search product, SKU, category"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <span className="result-count">{products.length} products</span>
+      <div className="tabs">
+        <button
+          className={tab === 'products' ? 'tab-button active' : 'tab-button'}
+          onClick={() => setTab('products')}
+        >
+          Product Catalog ({products.length})
+        </button>
+        <button
+          className={tab === 'movements' ? 'tab-button active' : 'tab-button'}
+          onClick={() => setTab('movements')}
+        >
+          Stock Movement Log
+        </button>
       </div>
 
-      {showForm && (
-        <div className="panel form-panel">
-          <form onSubmit={save}>
-            <div className="form-header">
-              <h3>New product</h3>
-              <button type="button" className="icon-button" onClick={() => setShowForm(false)}>×</button>
+      {tab === 'products' && (
+        <>
+          <div className="toolbar">
+            <div className="search">
+              ⌕
+              <input
+                placeholder="Search product, SKU, category"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
             </div>
-            <div className="form-grid">
-              <label>
-                Product name *
-                <input name="name" required />
-              </label>
-              <label>
-                SKU / Code *
-                <input name="sku" required />
-              </label>
-              <label>
-                Category
-                <input name="category" />
-              </label>
-              <label>
-                Unit price (₹)
-                <input name="unit_price" type="number" min="0" step="0.01" />
-              </label>
-              <label>
-                Opening stock
-                <input name="opening_stock" type="number" min="0" />
-              </label>
-              <label>
-                Minimum alert quantity
-                <input name="min_stock_alert" type="number" min="0" />
-              </label>
-              <label className="wide">
-                Warehouse / location
-                <input name="location" />
-              </label>
+            <span className="result-count">{products.length} products</span>
+          </div>
+
+          {(showForm || editingProduct) && (
+            <div className="panel form-panel">
+              <form onSubmit={saveProduct}>
+                <div className="form-header">
+                  <h3>{editingProduct ? `Edit Product: ${editingProduct.name}` : 'New product'}</h3>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    onClick={() => { setShowForm(false); setEditingProduct(null); }}
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="form-grid">
+                  <label>
+                    Product name *
+                    <input name="name" required defaultValue={editingProduct?.name || ''} />
+                  </label>
+                  <label>
+                    SKU / Code *
+                    <input name="sku" required defaultValue={editingProduct?.sku || ''} />
+                  </label>
+                  <label>
+                    Category
+                    <input name="category" defaultValue={editingProduct?.category || ''} />
+                  </label>
+                  <label>
+                    Unit price (₹)
+                    <input
+                      name="unit_price"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      required
+                      defaultValue={editingProduct?.unit_price || ''}
+                    />
+                  </label>
+                  {!editingProduct && (
+                    <label>
+                      Opening stock
+                      <input name="opening_stock" type="number" min="0" defaultValue="0" />
+                    </label>
+                  )}
+                  <label>
+                    Minimum alert quantity
+                    <input
+                      name="min_stock_alert"
+                      type="number"
+                      min="0"
+                      defaultValue={editingProduct?.min_stock_alert || '10'}
+                    />
+                  </label>
+                  <label className="wide">
+                    Warehouse / location
+                    <input name="location" defaultValue={editingProduct?.location || 'Warehouse A'} />
+                  </label>
+                </div>
+                <div className="form-actions">
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={() => { setShowForm(false); setEditingProduct(null); }}
+                  >
+                    Cancel
+                  </button>
+                  <button className="button primary">
+                    {editingProduct ? 'Update product' : 'Save product'}
+                  </button>
+                </div>
+              </form>
             </div>
-            <div className="form-actions">
-              <button type="button" className="button" onClick={() => setShowForm(false)}>
-                Cancel
-              </button>
-              <button className="button primary">Save product</button>
-            </div>
-          </form>
+          )}
+
+          <div className="panel table-panel">
+            <table>
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>SKU</th>
+                  <th>Category</th>
+                  <th>Price</th>
+                  <th>Current Stock</th>
+                  <th>Location</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {products.map((product) => {
+                  const isLow = product.current_stock <= product.min_stock_alert;
+                  return (
+                    <tr key={product.id}>
+                      <td><b>{product.name}</b></td>
+                      <td><code>{product.sku}</code></td>
+                      <td>{product.category || '—'}</td>
+                      <td>{money(product.unit_price)}</td>
+                      <td>
+                        <span className={isLow ? 'stock low' : 'stock'}>
+                          {product.current_stock} <small>units</small>
+                        </span>
+                        {isLow && <span className="status inactive" style={{ marginLeft: '8px' }}>Low</span>}
+                      </td>
+                      <td>{product.location || '—'}</td>
+                      <td>
+                        <div className="table-actions">
+                          {canEdit && (
+                            <>
+                              <button
+                                className="text-button"
+                                onClick={() => { setAdjustTarget(product); setShowAdjustModal(true); }}
+                              >
+                                Adjust
+                              </button>
+                              <button
+                                className="text-button"
+                                onClick={() => { setShowForm(false); setEditingProduct(product); }}
+                              >
+                                Edit
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {!products.length && <Empty text="No products yet" />}
+          </div>
+        </>
+      )}
+
+      {tab === 'movements' && (
+        <div className="panel table-panel">
+          <table>
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Movement</th>
+                <th>Quantity</th>
+                <th>Reason</th>
+                <th>Logged By</th>
+                <th>Timestamp</th>
+              </tr>
+            </thead>
+            <tbody>
+              {movements.map((item) => (
+                <tr key={item.id}>
+                  <td>
+                    <b>{item.products?.name || 'Product'}</b>
+                    <span className="subtext"><code>{item.products?.sku}</code></span>
+                  </td>
+                  <td>
+                    <span className={`movement-badge ${item.movement_type.toLowerCase()}`}>
+                      {item.movement_type === 'IN' ? '↓ IN' : '↑ OUT'}
+                    </span>
+                  </td>
+                  <td>
+                    <b style={{ color: item.movement_type === 'IN' ? 'var(--green)' : 'var(--red)' }}>
+                      {item.movement_type === 'IN' ? `+${item.quantity_change}` : `-${item.quantity_change}`}
+                    </b>
+                  </td>
+                  <td>{item.reason || '—'}</td>
+                  <td>{item.users?.name || 'System / Admin'}</td>
+                  <td>
+                    {new Date(item.created_at).toLocaleString('en-IN', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!movements.length && <Empty text="No stock movements recorded yet" />}
         </div>
       )}
 
-      <div className="panel table-panel">
-        <table>
-          <thead>
-            <tr>
-              <th>Product</th>
-              <th>SKU</th>
-              <th>Category</th>
-              <th>Price</th>
-              <th>Current stock</th>
-              <th>Location</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {products.map((product) => {
-              const isLow = product.current_stock <= product.min_stock_alert;
-              return (
-                <tr key={product.id}>
-                  <td><b>{product.name}</b></td>
-                  <td><code>{product.sku}</code></td>
-                  <td>{product.category || '—'}</td>
-                  <td>{money(product.unit_price)}</td>
-                  <td>
-                    <span className={isLow ? 'stock low' : 'stock'}>
-                      {product.current_stock} <small>units</small>
-                    </span>
-                  </td>
-                  <td>{product.location || '—'}</td>
-                  <td>{isLow && <span className="status inactive">Low</span>}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {!products.length && <Empty text="No products yet" />}
-      </div>
+      {/* Adjust Stock Modal */}
+      {showAdjustModal && (
+        <div className="modal-backdrop">
+          <div className="modal">
+            <div className="form-header">
+              <h3>Record Stock Movement</h3>
+              <button
+                className="icon-button"
+                onClick={() => { setShowAdjustModal(false); setAdjustTarget(null); }}
+              >
+                ×
+              </button>
+            </div>
+            <form onSubmit={recordMovement}>
+              <label>
+                Product *
+                <select
+                  name="product_id"
+                  required
+                  defaultValue={adjustTarget?.id || ''}
+                >
+                  <option value="">Select a product</option>
+                  {products.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.sku}) — Available: {p.current_stock}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="form-grid" style={{ marginTop: '12px' }}>
+                <label>
+                  Movement Type *
+                  <select name="movement_type" defaultValue="IN">
+                    <option value="IN">IN (Received shipment / Stock addition)</option>
+                    <option value="OUT">OUT (Dispatched / Damaged / Deduction)</option>
+                  </select>
+                </label>
+                <label>
+                  Quantity Changed *
+                  <input name="quantity_change" type="number" min="1" required defaultValue="1" />
+                </label>
+              </div>
+
+              <label style={{ marginTop: '12px' }}>
+                Reason / Note *
+                <input
+                  name="reason"
+                  required
+                  placeholder="e.g. Received new shipment, Damaged goods, Audit adjustment"
+                />
+              </label>
+
+              <div className="form-actions">
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => { setShowAdjustModal(false); setAdjustTarget(null); }}
+                >
+                  Cancel
+                </button>
+                <button className="button primary">Confirm Movement</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </>
   );
 }
 
-// ── Sales Challans Component ─────────────────────────────────
+// ── Sales Challans Module ────────────────────────────────────
 function Challans({ user }) {
   const [challans, setChallans] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -663,6 +949,7 @@ function Challans({ user }) {
   const [selectedProduct, setSelectedProduct] = useState('');
   const [customer, setCustomer] = useState('');
   const [items, setItems] = useState([]);
+  const [viewingChallan, setViewingChallan] = useState(null);
   const canEdit = ['admin', 'sales'].includes(user.role);
 
   const load = () => {
@@ -680,35 +967,67 @@ function Challans({ user }) {
   const addItem = () => {
     const product = products.find((item) => item.id === selectedProduct);
     if (product && !items.find((item) => item.product_id === product.id)) {
-      setItems([...items, { product_id: product.id, product_name: product.name, quantity: 1 }]);
+      setItems([
+        ...items,
+        {
+          product_id: product.id,
+          product_name: product.name,
+          product_sku: product.sku,
+          unit_price: product.unit_price,
+          quantity: 1
+        }
+      ]);
     }
     setSelectedProduct('');
   };
 
   const create = async (status) => {
-    if (!customer || !items.length) return;
-    await api('/challans', {
-      method: 'POST',
-      body: JSON.stringify({ customer_id: customer, items, status })
-    });
-    setItems([]);
-    setCustomer('');
-    setShowForm(false);
-    load();
+    if (!customer || !items.length) {
+      alert('Please select a customer and at least one product.');
+      return;
+    }
+    try {
+      await api('/challans', {
+        method: 'POST',
+        body: JSON.stringify({ customer_id: customer, items, status })
+      });
+      setItems([]);
+      setCustomer('');
+      setShowForm(false);
+      load();
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
   const confirm = async (id) => {
-    await api(`/challans/${id}/confirm`, { method: 'POST' });
-    load();
+    try {
+      await api(`/challans/${id}/confirm`, { method: 'POST' });
+      load();
+      if (viewingChallan) setViewingChallan(null);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const cancel = async (id) => {
+    if (!confirm('Are you sure you want to cancel this draft challan?')) return;
+    try {
+      await api(`/challans/${id}/cancel`, { method: 'POST' });
+      load();
+      if (viewingChallan) setViewingChallan(null);
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
   return (
     <>
       <div className="page-heading">
         <div>
-          <div className="eyebrow">DISPATCH OPERATIONS</div>
-          <h1>Sales challans</h1>
-          <p className="muted">Prepare and track every customer dispatch.</p>
+          <div className="eyebrow">DISPATCH & ORDER OPERATIONS</div>
+          <h1>Sales Challans</h1>
+          <p className="muted">Prepare, confirm, and track every customer dispatch order.</p>
         </div>
         {canEdit && (
           <button className="button primary" onClick={() => setShowForm(true)}>
@@ -720,46 +1039,54 @@ function Challans({ user }) {
       {showForm && (
         <div className="panel form-panel">
           <div className="form-header">
-            <h3>Create sales challan</h3>
+            <h3>Create Sales Challan</h3>
             <button className="icon-button" onClick={() => setShowForm(false)}>×</button>
           </div>
           <label>
-            Customer
+            Customer *
             <select value={customer} onChange={(e) => setCustomer(e.target.value)}>
               <option value="">Select customer</option>
               {customers.map((item) => (
                 <option value={item.id} key={item.id}>
-                  {item.name} · {item.business_name || 'Personal'}
+                  {item.name} · {item.business_name || 'Personal'} ({label(item.customer_type)})
                 </option>
               ))}
             </select>
           </label>
+
           <div className="add-product-row">
             <select value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)}>
               <option value="">Add products</option>
               {products.map((item) => (
                 <option value={item.id} key={item.id}>
-                  {item.name} · {item.current_stock} in stock
+                  {item.name} · {money(item.unit_price)} (Available: {item.current_stock})
                 </option>
               ))}
             </select>
-            <button className="button" type="button" onClick={addItem}>Add</button>
+            <button className="button" type="button" onClick={addItem}>+ Add Line Item</button>
           </div>
+
           {items.map((item, index) => (
             <div className="line-item" key={item.product_id}>
-              <b>{item.product_name}</b>
-              <input
-                type="number"
-                min="1"
-                value={item.quantity}
-                onChange={(e) =>
-                  setItems(
-                    items.map((row, rowIndex) =>
-                      rowIndex === index ? { ...row, quantity: Number(e.target.value) } : row
+              <div>
+                <b>{item.product_name}</b>
+                <span className="subtext">{money(item.unit_price)} each</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>Qty:</span>
+                <input
+                  type="number"
+                  min="1"
+                  value={item.quantity}
+                  onChange={(e) =>
+                    setItems(
+                      items.map((row, rowIndex) =>
+                        rowIndex === index ? { ...row, quantity: Number(e.target.value) } : row
+                      )
                     )
-                  )
-                }
-              />
+                  }
+                />
+              </div>
               <button
                 type="button"
                 onClick={() => setItems(items.filter((row) => row.product_id !== item.product_id))}
@@ -768,12 +1095,13 @@ function Challans({ user }) {
               </button>
             </div>
           ))}
+
           <div className="form-actions">
             <button className="button" type="button" onClick={() => create('draft')}>
-              Save draft
+              Save as Draft
             </button>
             <button className="button primary" type="button" onClick={() => create('confirmed')}>
-              Save & confirm
+              Save & Confirm Dispatch
             </button>
           </div>
         </div>
@@ -783,13 +1111,13 @@ function Challans({ user }) {
         <table>
           <thead>
             <tr>
-              <th>Challan</th>
+              <th>Challan No</th>
               <th>Customer</th>
               <th>Items</th>
-              <th>Total qty</th>
+              <th>Total Qty</th>
               <th>Status</th>
               <th>Date</th>
-              <th></th>
+              <th style={{ textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -801,20 +1129,31 @@ function Challans({ user }) {
                   <span className="subtext">{item.customers?.business_name}</span>
                 </td>
                 <td>{item.challan_items?.length || 0} products</td>
-                <td>{item.total_quantity}</td>
+                <td><b>{item.total_quantity}</b></td>
                 <td><span className={`status ${item.status}`}>{label(item.status)}</span></td>
                 <td>
                   {new Date(item.created_at).toLocaleDateString('en-IN', {
                     day: '2-digit',
-                    month: 'short'
+                    month: 'short',
+                    year: 'numeric'
                   })}
                 </td>
                 <td>
-                  {item.status === 'draft' && canEdit && (
-                    <button className="text-button" onClick={() => confirm(item.id)}>
-                      Confirm
+                  <div className="table-actions">
+                    <button className="text-button" onClick={() => setViewingChallan(item)}>
+                      View
                     </button>
-                  )}
+                    {item.status === 'draft' && canEdit && (
+                      <>
+                        <button className="text-button" onClick={() => confirm(item.id)}>
+                          Confirm
+                        </button>
+                        <button className="text-button danger" onClick={() => cancel(item.id)}>
+                          Cancel
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -822,6 +1161,73 @@ function Challans({ user }) {
         </table>
         {!challans.length && <Empty text="No challans yet" />}
       </div>
+
+      {/* View Challan Detail Modal */}
+      {viewingChallan && (
+        <div className="modal-backdrop">
+          <div className="modal">
+            <div className="form-header">
+              <div>
+                <div className="eyebrow">SALES CHALLAN</div>
+                <h2>{viewingChallan.challan_number}</h2>
+              </div>
+              <button className="icon-button" onClick={() => setViewingChallan(null)}>×</button>
+            </div>
+
+            <div className="detail-grid">
+              <div><span>Customer</span><b>{viewingChallan.customers?.name || '—'}</b></div>
+              <div><span>Business</span><b>{viewingChallan.customers?.business_name || '—'}</b></div>
+              <div><span>Status</span><b className={`status ${viewingChallan.status}`}>{label(viewingChallan.status)}</b></div>
+              <div><span>Total Quantity</span><b>{viewingChallan.total_quantity} units</b></div>
+              <div>
+                <span>Created Date</span>
+                <b>{new Date(viewingChallan.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</b>
+              </div>
+            </div>
+
+            <hr />
+            <h3>Product Snapshot Items</h3>
+            <table className="items-table">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>SKU</th>
+                  <th>Unit Price</th>
+                  <th>Quantity</th>
+                  <th>Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(viewingChallan.challan_items || []).map((line) => (
+                  <tr key={line.id}>
+                    <td><b>{line.product_name}</b></td>
+                    <td><code>{line.product_sku}</code></td>
+                    <td>{money(line.unit_price)}</td>
+                    <td><b>{line.quantity}</b></td>
+                    <td>{money((line.unit_price || 0) * (line.quantity || 1))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div className="form-actions" style={{ marginTop: '20px' }}>
+              {viewingChallan.status === 'draft' && canEdit && (
+                <>
+                  <button className="button danger" onClick={() => cancel(viewingChallan.id)}>
+                    Cancel Challan
+                  </button>
+                  <button className="button primary" onClick={() => confirm(viewingChallan.id)}>
+                    Confirm Dispatch
+                  </button>
+                </>
+              )}
+              <button className="button" onClick={() => setViewingChallan(null)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
