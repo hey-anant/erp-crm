@@ -134,7 +134,6 @@ function App() {
             <span className="brand-mark small">EC</span>ERP-CRM
           </div>
           <div className="topbar-actions">
-            <span className="status-dot"></span>Live workspace
             <div className="avatar">
               {user.name.split(' ').map((n) => n[0]).join('')}
             </div>
