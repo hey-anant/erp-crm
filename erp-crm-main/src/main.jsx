@@ -3,8 +3,10 @@ import { createRoot } from 'react-dom/client';
 import './styles.css';
 
 // ── API Fetcher Utility ──────────────────────────────────────
+const TOKEN_KEY = 'erpcrm_token';
+
 const api = async (url, options = {}) => {
-  const token = localStorage.getItem('northstar_token');
+  const token = localStorage.getItem(TOKEN_KEY) || localStorage.getItem('northstar_token');
   const response = await fetch(`/api${url}`, {
     ...options,
     headers: {
@@ -37,7 +39,7 @@ function Login({ onLogin }) {
         method: 'POST',
         body: JSON.stringify({ email, password })
       });
-      localStorage.setItem('northstar_token', result.token);
+      localStorage.setItem(TOKEN_KEY, result.token);
       onLogin(result.user);
     } catch (err) {
       setError(err.message);
@@ -49,9 +51,9 @@ function Login({ onLogin }) {
   return (
     <div className="login-shell">
       <div className="login-brand">
-        <div className="brand-mark">N</div>
+        <div className="brand-mark">EC</div>
         <div>
-          <strong>Northstar</strong>
+          <strong>ERP-CRM</strong>
           <span>Operations portal</span>
         </div>
       </div>
@@ -100,10 +102,14 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (localStorage.getItem('northstar_token')) {
+    const savedToken = localStorage.getItem(TOKEN_KEY) || localStorage.getItem('northstar_token');
+    if (savedToken) {
       api('/auth/me')
         .then((result) => setUser(result.user))
-        .catch(() => localStorage.removeItem('northstar_token'))
+        .catch(() => {
+          localStorage.removeItem(TOKEN_KEY);
+          localStorage.removeItem('northstar_token');
+        })
         .finally(() => setLoading(false));
     } else {
       setLoading(false);
@@ -114,6 +120,7 @@ function App() {
   if (!user) return <Login onLogin={setUser} />;
 
   const logout = () => {
+    localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem('northstar_token');
     setUser(null);
   };
@@ -124,7 +131,7 @@ function App() {
       <main className="main">
         <header className="topbar">
           <div className="mobile-title">
-            <span className="brand-mark small">N</span>Northstar
+            <span className="brand-mark small">EC</span>ERP-CRM
           </div>
           <div className="topbar-actions">
             <span className="status-dot"></span>Live workspace
@@ -156,9 +163,9 @@ function Sidebar({ page, setPage, user, logout }) {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <div className="brand-mark">N</div>
+        <div className="brand-mark">EC</div>
         <div>
-          <strong>Northstar</strong>
+          <strong>ERP-CRM</strong>
           <span>Operations portal</span>
         </div>
       </div>

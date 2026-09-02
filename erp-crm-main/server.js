@@ -12,7 +12,7 @@ const port = process.env.PORT || 3000;
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
-const jwtSecret = process.env.JWT_SECRET || 'northstar-development-secret';
+const jwtSecret = process.env.JWT_SECRET || 'erpcrm-development-secret';
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'dist')));
@@ -330,7 +330,7 @@ app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html
 seed().catch((error) => console.error('Seed notice:', error.message || error));
 
 if (!process.env.VERCEL) {
-  app.listen(port, () => console.log(`Northstar ERP listening on port ${port}`));
+  app.listen(port, () => console.log(`ERP-CRM server listening on port ${port}`));
 }
 
 export default app;
