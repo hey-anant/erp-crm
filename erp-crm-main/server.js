@@ -323,9 +323,15 @@ async function confirmChallan(id, user, res) {
 
 app.post('/api/challans/:id/confirm', auth, roles('admin', 'sales'), (req, res) => confirmChallan(req.params.id, req.user, res));
 
-// Client fallback routing
+// Client fallback routing (for standalone node server)
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
 
 // Server startup
 seed().catch((error) => console.error('Seed notice:', error.message || error));
-app.listen(port, () => console.log(`Northstar ERP listening on port ${port}`));
+
+if (!process.env.VERCEL) {
+  app.listen(port, () => console.log(`Northstar ERP listening on port ${port}`));
+}
+
+export default app;
+
