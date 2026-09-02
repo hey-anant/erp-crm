@@ -15,7 +15,15 @@ const api = async (url, options = {}) => {
       ...(options.headers || {})
     }
   });
-  const data = await response.json();
+
+  const text = await response.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error('Server returned an unexpected response. Please ensure backend is running.');
+  }
+
   if (!response.ok) throw new Error(data.error || 'Something went wrong');
   return data;
 };
@@ -23,10 +31,13 @@ const api = async (url, options = {}) => {
 const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN')}`;
 const label = (value) => String(value || '').replaceAll('_', ' ');
 
-// ── Login Component ──────────────────────────────────────────
+// ── Auth Component (Login & Sign Up) ──────────────────────────
 function Login({ onLogin }) {
+  const [mode, setMode] = useState('login'); // 'login' | 'signup'
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('admin@northstar.com');
   const [password, setPassword] = useState('password123');
+  const [role, setRole] = useState('sales');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -35,9 +46,14 @@ function Login({ onLogin }) {
     setLoading(true);
     setError('');
     try {
-      const result = await api('/auth/login', {
+      const endpoint = mode === 'signup' ? '/auth/signup' : '/auth/login';
+      const payload = mode === 'signup'
+        ? { name, email, password, role }
+        : { email, password };
+
+      const result = await api(endpoint, {
         method: 'POST',
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify(payload)
       });
       localStorage.setItem(TOKEN_KEY, result.token);
       onLogin(result.user);
@@ -58,38 +74,97 @@ function Login({ onLogin }) {
         </div>
       </div>
       <div className="login-card">
-        <div className="eyebrow">TEAM SIGN IN</div>
-        <h1>Run the day with clarity.</h1>
-        <p className="muted">Manage customers, stock, and sales from one calm workspace.</p>
+        <div className="eyebrow">{mode === 'signup' ? 'NEW USER REGISTRATION' : 'TEAM SIGN IN'}</div>
+        <h1>{mode === 'signup' ? 'Create an account.' : 'Run the day with clarity.'}</h1>
+        <p className="muted">
+          {mode === 'signup'
+            ? 'Join the workspace with your name, work email, and role.'
+            : 'Manage customers, stock, and sales from one calm workspace.'}
+        </p>
+
+        <div className="tabs" style={{ marginBottom: '18px', width: '100%', display: 'flex' }}>
+          <button
+            type="button"
+            className={mode === 'login' ? 'tab-button active' : 'tab-button'}
+            style={{ flex: 1, textAlign: 'center' }}
+            onClick={() => { setMode('login'); setError(''); }}
+          >
+            Sign In
+          </button>
+          <button
+            type="button"
+            className={mode === 'signup' ? 'tab-button active' : 'tab-button'}
+            style={{ flex: 1, textAlign: 'center' }}
+            onClick={() => { setMode('signup'); setError(''); }}
+          >
+            Sign Up (Register)
+          </button>
+        </div>
+
         <form onSubmit={submit}>
+          {mode === 'signup' && (
+            <>
+              <label>
+                Full name *
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Vikram Sharma"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </label>
+              <label>
+                Assigned Role *
+                <select value={role} onChange={(e) => setRole(e.target.value)}>
+                  <option value="sales">Sales Team</option>
+                  <option value="warehouse">Warehouse Team</option>
+                  <option value="accounts">Accounts Team</option>
+                  <option value="admin">Administrator</option>
+                </select>
+              </label>
+            </>
+          )}
+
           <label>
-            Work email
+            Work email *
             <input
               type="email"
               required
+              placeholder="name@company.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
           </label>
           <label>
-            Password
+            Password *
             <input
               type="password"
               required
+              placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
           </label>
+
           {error && <div className="error-box">{error}</div>}
-          <button className="button primary full" disabled={loading}>
-            {loading ? 'Signing in…' : 'Sign in to workspace'}
+
+          <button className="button primary full" disabled={loading} style={{ marginTop: '8px' }}>
+            {loading ? (mode === 'signup' ? 'Creating account…' : 'Signing in…') : (mode === 'signup' ? 'Create Account & Sign In' : 'Sign in to workspace')}
           </button>
         </form>
-        <p className="demo-hint">
-          Demo password: <b>password123</b>
-          <br />
-          Admin, Sales, Warehouse, and Accounts accounts are ready.
-        </p>
+
+        {mode === 'login' ? (
+          <p className="demo-hint">
+            Demo credentials: <b>password123</b>
+            <br />
+            <code>admin@northstar.com</code> · <code>sales@northstar.com</code>
+          </p>
+        ) : (
+          <p className="demo-hint">
+            Accounts are saved securely in your Supabase database with encrypted passwords.
+          </p>
+        )}
       </div>
     </div>
   );
@@ -134,9 +209,16 @@ function App() {
             <span className="brand-mark small">EC</span>ERP-CRM
           </div>
           <div className="topbar-actions">
-            <div className="avatar">
+            <div className="avatar" title={`${user.name} (${label(user.role)})`}>
               {user.name.split(' ').map((n) => n[0]).join('')}
             </div>
+            <div className="topbar-user-info">
+              <b>{user.name}</b>
+              <span>{label(user.role)}</span>
+            </div>
+            <button className="logout-btn" onClick={logout} title="Sign out of your account">
+              Sign out ⎋
+            </button>
           </div>
         </header>
         <div className="page-content">
@@ -190,7 +272,9 @@ function Sidebar({ page, setPage, user, logout }) {
             <b>{user.name}</b>
             <span>{label(user.role)}</span>
           </div>
-          <button onClick={logout} title="Sign out">↗</button>
+          <button className="sidebar-logout" onClick={logout} title="Sign out of account">
+            Sign out
+          </button>
         </div>
       </div>
     </aside>

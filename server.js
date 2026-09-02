@@ -89,12 +89,44 @@ async function seed() {
   }
 }
 
-// ── Auth Endpoints ───────────────────────────────────────────
-app.post('/api/auth/login', async (req, res) => {
+// ── API Router ───────────────────────────────────────────────
+const router = express.Router();
+
+// ── Auth Endpoints
+router.post('/auth/signup', async (req, res) => {
+  const { name, email, password, role = 'sales' } = req.body || {};
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: 'Name, email, and password are required' });
+  }
+
+  const validRoles = ['admin', 'sales', 'warehouse', 'accounts'];
+  const userRole = validRoles.includes(role) ? role : 'sales';
+  const cleanEmail = email.toLowerCase().trim();
+
+  const { data: existingUser } = await supabase.from('users').select('id').eq('email', cleanEmail).maybeSingle();
+  if (existingUser) {
+    return res.status(400).json({ error: 'An account with this email already exists' });
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  const { data: user, error } = await supabase.from('users').insert({
+    name: name.trim(),
+    email: cleanEmail,
+    password_hash: passwordHash,
+    role: userRole
+  }).select().maybeSingle();
+
+  if (error) return fail(res, error);
+
+  const token = jwt.sign(publicUser(user), jwtSecret, { expiresIn: '12h' });
+  res.status(201).json({ token, user: publicUser(user) });
+});
+
+router.post('/auth/login', async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
 
-  const { data: user, error } = await supabase.from('users').select('*').eq('email', email.toLowerCase()).maybeSingle();
+  const { data: user, error } = await supabase.from('users').select('*').eq('email', email.toLowerCase().trim()).maybeSingle();
   if (error || !user || !(await bcrypt.compare(password, user.password_hash))) {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
@@ -103,10 +135,10 @@ app.post('/api/auth/login', async (req, res) => {
   res.json({ token, user: publicUser(user) });
 });
 
-app.get('/api/auth/me', auth, (req, res) => res.json({ user: req.user }));
+router.get('/auth/me', auth, (req, res) => res.json({ user: req.user }));
 
-// ── Dashboard Endpoint ───────────────────────────────────────
-app.get('/api/dashboard', auth, async (req, res) => {
+// ── Dashboard Endpoint
+router.get('/dashboard', auth, async (req, res) => {
   const [customers, products, challans, lowStock] = await Promise.all([
     supabase.from('customers').select('id', { count: 'exact', head: true }),
     supabase.from('products').select('id', { count: 'exact', head: true }),
@@ -122,8 +154,8 @@ app.get('/api/dashboard', auth, async (req, res) => {
   });
 });
 
-// ── Customer CRM Endpoints ───────────────────────────────────
-app.get('/api/customers', auth, async (req, res) => {
+// ── Customer CRM Endpoints
+router.get('/customers', auth, async (req, res) => {
   const search = String(req.query.search || '').trim();
   let query = supabase.from('customers').select('*, follow_ups(id,note,follow_up_date,created_at)').order('created_at', { ascending: false });
   if (search) {
@@ -134,20 +166,20 @@ app.get('/api/customers', auth, async (req, res) => {
   res.json(data || []);
 });
 
-app.post('/api/customers', auth, roles('admin', 'sales'), async (req, res) => {
+router.post('/customers', auth, roles('admin', 'sales'), async (req, res) => {
   const payload = { ...req.body, created_by: req.user.id };
   const { data, error } = await supabase.from('customers').insert(payload).select().maybeSingle();
   if (error) return fail(res, error);
   res.status(201).json(data);
 });
 
-app.put('/api/customers/:id', auth, roles('admin', 'sales'), async (req, res) => {
+router.put('/customers/:id', auth, roles('admin', 'sales'), async (req, res) => {
   const { data, error } = await supabase.from('customers').update(req.body).eq('id', req.params.id).select().maybeSingle();
   if (error) return fail(res, error);
   res.json(data);
 });
 
-app.post('/api/customers/:id/follow-ups', auth, roles('admin', 'sales'), async (req, res) => {
+router.post('/customers/:id/follow-ups', auth, roles('admin', 'sales'), async (req, res) => {
   const { note, follow_up_date } = req.body || {};
   if (!note) return res.status(400).json({ error: 'Note is required' });
 
@@ -162,8 +194,8 @@ app.post('/api/customers/:id/follow-ups', auth, roles('admin', 'sales'), async (
   res.status(201).json(data);
 });
 
-// ── Inventory & Products Endpoints ───────────────────────────
-app.get('/api/products', auth, async (req, res) => {
+// ── Inventory & Products Endpoints
+router.get('/products', auth, async (req, res) => {
   const search = String(req.query.search || '').trim();
   let query = supabase.from('products').select('*').order('name');
   if (search) {
@@ -174,7 +206,7 @@ app.get('/api/products', auth, async (req, res) => {
   res.json(data || []);
 });
 
-app.post('/api/products', auth, roles('admin', 'warehouse'), async (req, res) => {
+router.post('/products', auth, roles('admin', 'warehouse'), async (req, res) => {
   const { opening_stock = 0, ...product } = req.body;
   const { data, error } = await supabase.from('products').insert({ ...product, current_stock: 0 }).select().maybeSingle();
   if (error) return fail(res, error);
@@ -192,13 +224,13 @@ app.post('/api/products', auth, roles('admin', 'warehouse'), async (req, res) =>
   res.status(201).json(data);
 });
 
-app.put('/api/products/:id', auth, roles('admin', 'warehouse'), async (req, res) => {
+router.put('/products/:id', auth, roles('admin', 'warehouse'), async (req, res) => {
   const { data, error } = await supabase.from('products').update(req.body).eq('id', req.params.id).select().maybeSingle();
   if (error) return fail(res, error);
   res.json(data);
 });
 
-app.post('/api/products/:id/movements', auth, roles('admin', 'warehouse'), async (req, res) => {
+router.post('/products/:id/movements', auth, roles('admin', 'warehouse'), async (req, res) => {
   const { quantity_change, movement_type, reason } = req.body || {};
   const quantity = Number(quantity_change);
 
@@ -224,7 +256,7 @@ app.post('/api/products/:id/movements', auth, roles('admin', 'warehouse'), async
   res.status(201).json(data);
 });
 
-app.get('/api/stock-movements', auth, async (req, res) => {
+router.get('/stock-movements', auth, async (req, res) => {
   const { data, error } = await supabase.from('stock_movements')
     .select('*, products(name,sku), users(name)')
     .order('created_at', { ascending: false })
@@ -234,8 +266,8 @@ app.get('/api/stock-movements', auth, async (req, res) => {
   res.json(data || []);
 });
 
-// ── Sales Challans Endpoints ─────────────────────────────────
-app.get('/api/challans', auth, async (req, res) => {
+// ── Sales Challans Endpoints
+router.get('/challans', auth, async (req, res) => {
   const { data, error } = await supabase.from('sales_challans')
     .select('*, customers(name,business_name), challan_items(*)')
     .order('created_at', { ascending: false });
@@ -244,7 +276,7 @@ app.get('/api/challans', auth, async (req, res) => {
   res.json(data || []);
 });
 
-app.post('/api/challans', auth, roles('admin', 'sales'), async (req, res) => {
+router.post('/challans', auth, roles('admin', 'sales'), async (req, res) => {
   const { customer_id, items, status = 'draft' } = req.body || {};
   if (!customer_id || !Array.isArray(items) || !items.length) {
     return res.status(400).json({ error: 'Customer and at least one product are required' });
@@ -321,9 +353,9 @@ async function confirmChallan(id, user, res) {
   res.json(data);
 }
 
-app.post('/api/challans/:id/confirm', auth, roles('admin', 'sales'), (req, res) => confirmChallan(req.params.id, req.user, res));
+router.post('/challans/:id/confirm', auth, roles('admin', 'sales'), (req, res) => confirmChallan(req.params.id, req.user, res));
 
-app.post('/api/challans/:id/cancel', auth, roles('admin', 'sales'), async (req, res) => {
+router.post('/challans/:id/cancel', auth, roles('admin', 'sales'), async (req, res) => {
   const { data: challan } = await supabase.from('sales_challans').select('*').eq('id', req.params.id).maybeSingle();
   if (!challan) return res.status(404).json({ error: 'Challan not found' });
   if (challan.status !== 'draft') return res.status(400).json({ error: 'Only draft challans can be cancelled' });
@@ -333,8 +365,20 @@ app.post('/api/challans/:id/cancel', auth, roles('admin', 'sales'), async (req, 
   res.json(data);
 });
 
+// Mount router at both '/api' and '/'
+app.use('/api', router);
+app.use(router);
+
+// Guard: Unmatched API routes must return JSON, never HTML
+app.all('/api/*', (req, res) => res.status(404).json({ error: 'API route not found' }));
+
 // Client fallback routing (for standalone node server)
-app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
+app.get('*', (req, res) => {
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ error: 'API route not found' });
+  }
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
 
 // Server startup
 seed().catch((error) => console.error('Seed notice:', error.message || error));
@@ -344,4 +388,3 @@ if (!process.env.VERCEL) {
 }
 
 export default app;
-
