@@ -1,23 +1,832 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 
-const api = async (url, options = {}) => { const token = localStorage.getItem('northstar_token'); const response = await fetch(`/api${url}`, { ...options, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(options.headers || {}) } }); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Something went wrong'); return data; };
+// ── API Fetcher Utility ──────────────────────────────────────
+const api = async (url, options = {}) => {
+  const token = localStorage.getItem('northstar_token');
+  const response = await fetch(`/api${url}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {})
+    }
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Something went wrong');
+  return data;
+};
+
 const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN')}`;
-const label = (value) => String(value).replaceAll('_', ' ');
+const label = (value) => String(value || '').replaceAll('_', ' ');
 
-function Login({ onLogin }) { const [email, setEmail] = useState('admin@northstar.com'); const [password, setPassword] = useState('password123'); const [error, setError] = useState(''); const [loading, setLoading] = useState(false); const submit = async (event) => { event.preventDefault(); setLoading(true); setError(''); try { const result = await api('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }); localStorage.setItem('northstar_token', result.token); onLogin(result.user); } catch (err) { setError(err.message); } finally { setLoading(false); } }; return <div className="login-shell"><div className="login-brand"><div className="brand-mark">N</div><div><strong>Northstar</strong><span>Operations portal</span></div></div><div className="login-card"><div className="eyebrow">TEAM SIGN IN</div><h1>Run the day with clarity.</h1><p className="muted">Manage customers, stock, and sales from one calm workspace.</p><form onSubmit={submit}><label>Work email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label><label>Password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>{error && <div className="error-box">{error}</div>}<button className="button primary full" disabled={loading}>{loading ? 'Signing in…' : 'Sign in to workspace'}</button></form><p className="demo-hint">Demo password: <b>password123</b><br />Admin, Sales, Warehouse, and Accounts accounts are ready.</p></div></div>; }
+// ── Login Component ──────────────────────────────────────────
+function Login({ onLogin }) {
+  const [email, setEmail] = useState('admin@northstar.com');
+  const [password, setPassword] = useState('password123');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-function App() { const [user, setUser] = useState(null); const [page, setPage] = useState('overview'); const [loading, setLoading] = useState(true); useEffect(() => { if (localStorage.getItem('northstar_token')) api('/auth/me').then((result) => setUser(result.user)).catch(() => localStorage.removeItem('northstar_token')).finally(() => setLoading(false)); else setLoading(false); }, []); if (loading) return <div className="loading">Loading workspace…</div>; if (!user) return <Login onLogin={setUser} />; const logout = () => { localStorage.removeItem('northstar_token'); setUser(null); }; return <div className="app-shell"><Sidebar page={page} setPage={setPage} user={user} logout={logout} /><main className="main"><header className="topbar"><div className="mobile-title"><span className="brand-mark small">N</span>Northstar</div><div className="topbar-actions"><span className="status-dot"></span>Live workspace<div className="avatar">{user.name.split(' ').map((n) => n[0]).join('')}</div></div></header><div className="page-content">{page === 'overview' && <Overview setPage={setPage} />}{page === 'customers' && <Customers user={user} />}{page === 'inventory' && <Inventory user={user} />}{page === 'challans' && <Challans user={user} />}</div></main></div>; }
-function Sidebar({ page, setPage, user, logout }) { return <aside className="sidebar"><div className="brand"><div className="brand-mark">N</div><div><strong>Northstar</strong><span>Operations portal</span></div></div><div className="workspace-label">WORKSPACE</div><nav>{[['overview','Overview','⌂'],['customers','Customers','◉'],['inventory','Inventory','▦'],['challans','Sales challans','◫']].map(([id, text, icon]) => <button key={id} className={page === id ? 'nav-item active' : 'nav-item'} onClick={() => setPage(id)}><span>{icon}</span>{text}</button>)}</nav><div className="sidebar-bottom"><div className="user-card"><div className="avatar">{user.name.split(' ').map((n) => n[0]).join('')}</div><div><b>{user.name}</b><span>{label(user.role)}</span></div><button onClick={logout} title="Sign out">↗</button></div></div></aside>; }
-function Overview({ setPage }) { const [stats, setStats] = useState(null); useEffect(() => { api('/dashboard').then(setStats); }, []); if (!stats) return <div className="loading">Preparing your overview…</div>; return <><div className="page-heading"><div><div className="eyebrow">WEDNESDAY, 02 SEPTEMBER 2026</div><h1>Good morning, team.</h1><p className="muted">Here’s what needs your attention today.</p></div><button className="button primary" onClick={() => setPage('challans')}>+ New challan</button></div><div className="stats-grid"><Stat title="Total customers" value={stats.customers} hint="Across all segments" icon="◉" tone="blue" /><Stat title="Products tracked" value={stats.products} hint="In your catalog" icon="▦" tone="green" /><Stat title="Confirmed challans" value={stats.confirmedChallans} hint="Stock dispatched" icon="◫" tone="orange" /><Stat title="Low stock alerts" value={stats.lowStock} hint="Need attention" icon="!" tone="red" /></div><div className="overview-grid"><div className="panel welcome-panel"><div className="eyebrow">YOUR CONTROL CENTER</div><h2>Everything in its place.</h2><p>Keep customer conversations, warehouse movement, and dispatches moving without switching tools.</p><div className="quick-actions"><button onClick={() => setPage('customers')}><span>◉</span><b>Add a customer</b><small>Capture a new relationship</small><i>→</i></button><button onClick={() => setPage('inventory')}><span>▦</span><b>Update stock</b><small>Record an incoming shipment</small><i>→</i></button><button onClick={() => setPage('challans')}><span>◫</span><b>Create challan</b><small>Prepare a customer dispatch</small><i>→</i></button></div></div><div className="panel attention-panel"><div className="panel-heading"><div><h3>Attention needed</h3><p className="muted">Small things worth a look</p></div><span className="alert-icon">!</span></div><div className="attention-item"><div className="attention-badge red">!</div><div><b>{stats.lowStock} products below minimum</b><span>Review inventory levels</span></div><button onClick={() => setPage('inventory')}>View →</button></div><div className="attention-item"><div className="attention-badge blue">◷</div><div><b>Follow-ups keep deals moving</b><span>Check your customer pipeline</span></div><button onClick={() => setPage('customers')}>View →</button></div></div></div></>; }
-function Stat({ title, value, hint, icon, tone }) { return <div className="stat-card"><div className={`stat-icon ${tone}`}>{icon}</div><div className="stat-label">{title}</div><div className="stat-value">{value}</div><div className="stat-hint">{hint}</div></div>; }
+  const submit = async (event) => {
+    event.preventDefault();
+    setLoading(true);
+    setError('');
+    try {
+      const result = await api('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password })
+      });
+      localStorage.setItem('northstar_token', result.token);
+      onLogin(result.user);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-function Customers({ user }) { const [customers, setCustomers] = useState([]); const [search, setSearch] = useState(''); const [showForm, setShowForm] = useState(false); const [selected, setSelected] = useState(null); const canEdit = ['admin','sales'].includes(user.role); const load = () => api(`/customers?search=${encodeURIComponent(search)}`).then(setCustomers); useEffect(load, [search]); const save = async (event) => { event.preventDefault(); const body = Object.fromEntries(new FormData(event.target)); await api('/customers', { method: 'POST', body: JSON.stringify(body) }); setShowForm(false); load(); }; return <><div className="page-heading"><div><div className="eyebrow">CUSTOMER RELATIONSHIPS</div><h1>Customers</h1><p className="muted">Build relationships that last.</p></div>{canEdit && <button className="button primary" onClick={() => setShowForm(true)}>+ Add customer</button>}</div><div className="toolbar"><div className="search">⌕<input placeholder="Search name, business, mobile" value={search} onChange={(e) => setSearch(e.target.value)} /></div><span className="result-count">{customers.length} customers</span></div>{showForm && <div className="panel form-panel"><form onSubmit={save}><div className="form-header"><h3>New customer</h3><button type="button" className="icon-button" onClick={() => setShowForm(false)}>×</button></div><div className="form-grid"><label>Name *<input name="name" required /></label><label>Mobile *<input name="mobile" required /></label><label>Email<input name="email" type="email" /></label><label>Business name<input name="business_name" /></label><label>Customer type<select name="customer_type"><option value="retail">Retail</option><option value="wholesale">Wholesale</option><option value="distributor">Distributor</option></select></label><label>Status<select name="status"><option value="lead">Lead</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label><label>Follow-up date<input name="follow_up_date" type="date" /></label><label>GST number<input name="gst_number" /></label><label className="wide">Address<input name="address" /></label><label className="wide">Notes<textarea name="notes" rows="3"></textarea></label></div><div className="form-actions"><button type="button" className="button" onClick={() => setShowForm(false)}>Cancel</button><button className="button primary">Save customer</button></div></form></div>}<div className="panel table-panel"><table><thead><tr><th>Customer</th><th>Type</th><th>Status</th><th>Follow-up</th><th>Contact</th><th></th></tr></thead><tbody>{customers.map((customer) => <tr key={customer.id}><td><div className="table-person"><div className="avatar pale">{customer.name[0]}</div><div><b>{customer.name}</b><span>{customer.business_name || 'Independent customer'}</span></div></div></td><td><span className="tag">{label(customer.customer_type)}</span></td><td><span className={`status ${customer.status}`}>{label(customer.status)}</span></td><td>{customer.follow_up_date ? new Date(customer.follow_up_date).toLocaleDateString('en-IN', { day:'2-digit', month:'short' }) : '—'}</td><td>{customer.mobile}</td><td><button className="text-button" onClick={() => setSelected(customer)}>View</button></td></tr>)}</tbody></table>{!customers.length && <Empty text="No customers yet" />}</div>{selected && <Detail customer={selected} close={() => setSelected(null)} />}</>; }
-function Detail({ customer, close }) { const [note, setNote] = useState(''); const addNote = async () => { if (!note.trim()) return; await api(`/customers/${customer.id}/follow-ups`, { method:'POST', body:JSON.stringify({ note }) }); setNote(''); }; return <div className="modal-backdrop"><div className="modal"><div className="form-header"><div><div className="eyebrow">CUSTOMER DETAIL</div><h2>{customer.name}</h2></div><button className="icon-button" onClick={close}>×</button></div><div className="detail-grid"><div><span>Business</span><b>{customer.business_name || '—'}</b></div><div><span>Mobile</span><b>{customer.mobile}</b></div><div><span>Type</span><b>{label(customer.customer_type)}</b></div><div><span>Status</span><b>{label(customer.status)}</b></div></div><hr /><h3>Follow-up notes</h3>{(customer.follow_ups || []).map((item) => <div className="note" key={item.id}><b>{item.note}</b><span>{new Date(item.created_at).toLocaleDateString()}</span></div>)}<div className="note-entry"><textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add a note…" /><button className="button primary" onClick={addNote}>Add note</button></div></div></div>; }
+  return (
+    <div className="login-shell">
+      <div className="login-brand">
+        <div className="brand-mark">N</div>
+        <div>
+          <strong>Northstar</strong>
+          <span>Operations portal</span>
+        </div>
+      </div>
+      <div className="login-card">
+        <div className="eyebrow">TEAM SIGN IN</div>
+        <h1>Run the day with clarity.</h1>
+        <p className="muted">Manage customers, stock, and sales from one calm workspace.</p>
+        <form onSubmit={submit}>
+          <label>
+            Work email
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </label>
+          <label>
+            Password
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </label>
+          {error && <div className="error-box">{error}</div>}
+          <button className="button primary full" disabled={loading}>
+            {loading ? 'Signing in…' : 'Sign in to workspace'}
+          </button>
+        </form>
+        <p className="demo-hint">
+          Demo password: <b>password123</b>
+          <br />
+          Admin, Sales, Warehouse, and Accounts accounts are ready.
+        </p>
+      </div>
+    </div>
+  );
+}
 
-function Inventory({ user }) { const [products, setProducts] = useState([]); const [search, setSearch] = useState(''); const [showForm, setShowForm] = useState(false); const canEdit = ['admin','warehouse'].includes(user.role); const load = () => api(`/products?search=${encodeURIComponent(search)}`).then(setProducts); useEffect(load, [search]); const save = async (event) => { event.preventDefault(); await api('/products', { method:'POST', body:JSON.stringify(Object.fromEntries(new FormData(event.target))) }); setShowForm(false); load(); }; return <><div className="page-heading"><div><div className="eyebrow">WAREHOUSE CONTROL</div><h1>Inventory</h1><p className="muted">Know what’s available before it moves.</p></div>{canEdit && <button className="button primary" onClick={() => setShowForm(true)}>+ Add product</button>}</div><div className="toolbar"><div className="search">⌕<input placeholder="Search product, SKU, category" value={search} onChange={(e) => setSearch(e.target.value)} /></div><span className="result-count">{products.length} products</span></div>{showForm && <div className="panel form-panel"><form onSubmit={save}><div className="form-header"><h3>New product</h3><button type="button" className="icon-button" onClick={() => setShowForm(false)}>×</button></div><div className="form-grid"><label>Product name *<input name="name" required /></label><label>SKU / Code *<input name="sku" required /></label><label>Category<input name="category" /></label><label>Unit price<input name="unit_price" type="number" min="0" step="0.01" /></label><label>Opening stock<input name="opening_stock" type="number" min="0" /></label><label>Minimum alert quantity<input name="min_stock_alert" type="number" min="0" /></label><label className="wide">Warehouse / location<input name="location" /></label></div><div className="form-actions"><button type="button" className="button" onClick={() => setShowForm(false)}>Cancel</button><button className="button primary">Save product</button></div></form></div>}<div className="panel table-panel"><table><thead><tr><th>Product</th><th>SKU</th><th>Category</th><th>Price</th><th>Current stock</th><th>Location</th><th></th></tr></thead><tbody>{products.map((product) => <tr key={product.id}><td><b>{product.name}</b></td><td><code>{product.sku}</code></td><td>{product.category || '—'}</td><td>{money(product.unit_price)}</td><td><span className={product.current_stock <= product.min_stock_alert ? 'stock low' : 'stock'}>{product.current_stock} <small>units</small></span></td><td>{product.location || '—'}</td><td>{product.current_stock <= product.min_stock_alert && <span className="status inactive">Low</span>}</td></tr>)}</tbody></table>{!products.length && <Empty text="No products yet" />}</div></>; }
-function Challans({ user }) { const [challans, setChallans] = useState([]); const [customers, setCustomers] = useState([]); const [products, setProducts] = useState([]); const [showForm, setShowForm] = useState(false); const [selectedProduct, setSelectedProduct] = useState(''); const [customer, setCustomer] = useState(''); const [items, setItems] = useState([]); const canEdit = ['admin','sales'].includes(user.role); const load = () => Promise.all([api('/challans').then(setChallans), api('/customers').then(setCustomers), api('/products').then(setProducts)]); useEffect(() => { load(); }, []); const addItem = () => { const product = products.find((item) => item.id === selectedProduct); if (product && !items.find((item) => item.product_id === product.id)) setItems([...items, { product_id: product.id, product_name: product.name, quantity: 1 }]); setSelectedProduct(''); }; const create = async (status) => { if (!customer || !items.length) return; await api('/challans', { method:'POST', body:JSON.stringify({ customer_id:customer, items, status }) }); setItems([]); setCustomer(''); setShowForm(false); load(); }; const confirm = async (id) => { await api(`/challans/${id}/confirm`, { method:'POST' }); load(); }; return <><div className="page-heading"><div><div className="eyebrow">DISPATCH OPERATIONS</div><h1>Sales challans</h1><p className="muted">Prepare and track every customer dispatch.</p></div>{canEdit && <button className="button primary" onClick={() => setShowForm(true)}>+ New challan</button>}</div>{showForm && <div className="panel form-panel"><div className="form-header"><h3>Create sales challan</h3><button className="icon-button" onClick={() => setShowForm(false)}>×</button></div><label>Customer<select value={customer} onChange={(e) => setCustomer(e.target.value)}><option value="">Select customer</option>{customers.map((item) => <option value={item.id} key={item.id}>{item.name} · {item.business_name || 'Personal'}</option>)}</select></label><div className="add-product-row"><select value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)}><option value="">Add products</option>{products.map((item) => <option value={item.id} key={item.id}>{item.name} · {item.current_stock} in stock</option>)}</select><button className="button" onClick={addItem}>Add</button></div>{items.map((item, index) => <div className="line-item" key={item.product_id}><b>{item.product_name}</b><input type="number" min="1" value={item.quantity} onChange={(e) => setItems(items.map((row, rowIndex) => rowIndex === index ? { ...row, quantity:Number(e.target.value) } : row))} /><button onClick={() => setItems(items.filter((row) => row.product_id !== item.product_id))}>×</button></div>)}<div className="form-actions"><button className="button" onClick={() => create('draft')}>Save draft</button><button className="button primary" onClick={() => create('confirmed')}>Save & confirm</button></div></div>}<div className="panel table-panel"><table><thead><tr><th>Challan</th><th>Customer</th><th>Items</th><th>Total qty</th><th>Status</th><th>Date</th><th></th></tr></thead><tbody>{challans.map((item) => <tr key={item.id}><td><code>{item.challan_number}</code></td><td><b>{item.customers?.name || '—'}</b><span className="subtext">{item.customers?.business_name}</span></td><td>{item.challan_items?.length || 0} products</td><td>{item.total_quantity}</td><td><span className={`status ${item.status}`}>{label(item.status)}</span></td><td>{new Date(item.created_at).toLocaleDateString('en-IN', { day:'2-digit', month:'short' })}</td><td>{item.status === 'draft' && canEdit && <button className="text-button" onClick={() => confirm(item.id)}>Confirm</button>}</td></tr>)}</tbody></table>{!challans.length && <Empty text="No challans yet" />}</div></>; }
-function Empty({ text }) { return <div className="empty">{text}<span>Create your first record to see it here.</span></div>; }
+// ── Main App Shell ───────────────────────────────────────────
+function App() {
+  const [user, setUser] = useState(null);
+  const [page, setPage] = useState('overview');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (localStorage.getItem('northstar_token')) {
+      api('/auth/me')
+        .then((result) => setUser(result.user))
+        .catch(() => localStorage.removeItem('northstar_token'))
+        .finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
+  }, []);
+
+  if (loading) return <div className="loading">Loading workspace…</div>;
+  if (!user) return <Login onLogin={setUser} />;
+
+  const logout = () => {
+    localStorage.removeItem('northstar_token');
+    setUser(null);
+  };
+
+  return (
+    <div className="app-shell">
+      <Sidebar page={page} setPage={setPage} user={user} logout={logout} />
+      <main className="main">
+        <header className="topbar">
+          <div className="mobile-title">
+            <span className="brand-mark small">N</span>Northstar
+          </div>
+          <div className="topbar-actions">
+            <span className="status-dot"></span>Live workspace
+            <div className="avatar">
+              {user.name.split(' ').map((n) => n[0]).join('')}
+            </div>
+          </div>
+        </header>
+        <div className="page-content">
+          {page === 'overview' && <Overview setPage={setPage} />}
+          {page === 'customers' && <Customers user={user} />}
+          {page === 'inventory' && <Inventory user={user} />}
+          {page === 'challans' && <Challans user={user} />}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+// ── Sidebar Navigation ───────────────────────────────────────
+function Sidebar({ page, setPage, user, logout }) {
+  const navItems = [
+    ['overview', 'Overview', '⌂'],
+    ['customers', 'Customers', '◉'],
+    ['inventory', 'Inventory', '▦'],
+    ['challans', 'Sales challans', '◫']
+  ];
+
+  return (
+    <aside className="sidebar">
+      <div className="brand">
+        <div className="brand-mark">N</div>
+        <div>
+          <strong>Northstar</strong>
+          <span>Operations portal</span>
+        </div>
+      </div>
+      <div className="workspace-label">WORKSPACE</div>
+      <nav>
+        {navItems.map(([id, text, icon]) => (
+          <button
+            key={id}
+            className={page === id ? 'nav-item active' : 'nav-item'}
+            onClick={() => setPage(id)}
+          >
+            <span>{icon}</span>
+            {text}
+          </button>
+        ))}
+      </nav>
+      <div className="sidebar-bottom">
+        <div className="user-card">
+          <div className="avatar">
+            {user.name.split(' ').map((n) => n[0]).join('')}
+          </div>
+          <div>
+            <b>{user.name}</b>
+            <span>{label(user.role)}</span>
+          </div>
+          <button onClick={logout} title="Sign out">↗</button>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+// ── Overview Page ────────────────────────────────────────────
+function Overview({ setPage }) {
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => {
+    api('/dashboard').then(setStats).catch(console.error);
+  }, []);
+
+  if (!stats) return <div className="loading">Preparing your overview…</div>;
+
+  return (
+    <>
+      <div className="page-heading">
+        <div>
+          <div className="eyebrow">DASHBOARD & OVERVIEW</div>
+          <h1>Good day, team.</h1>
+          <p className="muted">Here’s what needs your attention today.</p>
+        </div>
+        <button className="button primary" onClick={() => setPage('challans')}>
+          + New challan
+        </button>
+      </div>
+
+      <div className="stats-grid">
+        <Stat title="Total customers" value={stats.customers} hint="Across all segments" icon="◉" tone="blue" />
+        <Stat title="Products tracked" value={stats.products} hint="In your catalog" icon="▦" tone="green" />
+        <Stat title="Confirmed challans" value={stats.confirmedChallans} hint="Stock dispatched" icon="◫" tone="orange" />
+        <Stat title="Low stock alerts" value={stats.lowStock} hint="Need attention" icon="!" tone="red" />
+      </div>
+
+      <div className="overview-grid">
+        <div className="panel welcome-panel">
+          <div className="eyebrow">CONTROL CENTER</div>
+          <h2>Everything in its place.</h2>
+          <p>Keep customer conversations, warehouse movement, and dispatches moving without switching tools.</p>
+          <div className="quick-actions">
+            <button onClick={() => setPage('customers')}>
+              <span>◉</span>
+              <b>Add a customer</b>
+              <small>Capture a new relationship</small>
+              <i>→</i>
+            </button>
+            <button onClick={() => setPage('inventory')}>
+              <span>▦</span>
+              <b>Update stock</b>
+              <small>Record an incoming shipment</small>
+              <i>→</i>
+            </button>
+            <button onClick={() => setPage('challans')}>
+              <span>◫</span>
+              <b>Create challan</b>
+              <small>Prepare a customer dispatch</small>
+              <i>→</i>
+            </button>
+          </div>
+        </div>
+
+        <div className="panel attention-panel">
+          <div className="panel-heading">
+            <div>
+              <h3>Attention needed</h3>
+              <p className="muted">Small things worth a look</p>
+            </div>
+            <span className="alert-icon">!</span>
+          </div>
+          <div className="attention-item">
+            <div className="attention-badge red">!</div>
+            <div>
+              <b>{stats.lowStock} products below minimum</b>
+              <span>Review inventory levels</span>
+            </div>
+            <button onClick={() => setPage('inventory')}>View →</button>
+          </div>
+          <div className="attention-item">
+            <div className="attention-badge blue">◷</div>
+            <div>
+              <b>Follow-ups keep deals moving</b>
+              <span>Check your customer pipeline</span>
+            </div>
+            <button onClick={() => setPage('customers')}>View →</button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function Stat({ title, value, hint, icon, tone }) {
+  return (
+    <div className="stat-card">
+      <div className={`stat-icon ${tone}`}>{icon}</div>
+      <div className="stat-label">{title}</div>
+      <div className="stat-value">{value}</div>
+      <div className="stat-hint">{hint}</div>
+    </div>
+  );
+}
+
+// ── Customers CRM Component ──────────────────────────────────
+function Customers({ user }) {
+  const [customers, setCustomers] = useState([]);
+  const [search, setSearch] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [selected, setSelected] = useState(null);
+  const canEdit = ['admin', 'sales'].includes(user.role);
+
+  const load = () => {
+    api(`/customers?search=${encodeURIComponent(search)}`)
+      .then(setCustomers)
+      .catch(console.error);
+  };
+
+  useEffect(load, [search]);
+
+  const save = async (event) => {
+    event.preventDefault();
+    const body = Object.fromEntries(new FormData(event.target));
+    await api('/customers', { method: 'POST', body: JSON.stringify(body) });
+    setShowForm(false);
+    load();
+  };
+
+  return (
+    <>
+      <div className="page-heading">
+        <div>
+          <div className="eyebrow">CUSTOMER RELATIONSHIPS</div>
+          <h1>Customers</h1>
+          <p className="muted">Build relationships that last.</p>
+        </div>
+        {canEdit && (
+          <button className="button primary" onClick={() => setShowForm(true)}>
+            + Add customer
+          </button>
+        )}
+      </div>
+
+      <div className="toolbar">
+        <div className="search">
+          ⌕
+          <input
+            placeholder="Search name, business, mobile"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <span className="result-count">{customers.length} customers</span>
+      </div>
+
+      {showForm && (
+        <div className="panel form-panel">
+          <form onSubmit={save}>
+            <div className="form-header">
+              <h3>New customer</h3>
+              <button type="button" className="icon-button" onClick={() => setShowForm(false)}>×</button>
+            </div>
+            <div className="form-grid">
+              <label>
+                Name *
+                <input name="name" required />
+              </label>
+              <label>
+                Mobile *
+                <input name="mobile" required />
+              </label>
+              <label>
+                Email
+                <input name="email" type="email" />
+              </label>
+              <label>
+                Business name
+                <input name="business_name" />
+              </label>
+              <label>
+                Customer type
+                <select name="customer_type" defaultValue="retail">
+                  <option value="retail">Retail</option>
+                  <option value="wholesale">Wholesale</option>
+                  <option value="distributor">Distributor</option>
+                </select>
+              </label>
+              <label>
+                Status
+                <select name="status" defaultValue="lead">
+                  <option value="lead">Lead</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </label>
+              <label>
+                Follow-up date
+                <input name="follow_up_date" type="date" />
+              </label>
+              <label>
+                GST number
+                <input name="gst_number" />
+              </label>
+              <label className="wide">
+                Address
+                <input name="address" />
+              </label>
+              <label className="wide">
+                Notes
+                <textarea name="notes" rows="3"></textarea>
+              </label>
+            </div>
+            <div className="form-actions">
+              <button type="button" className="button" onClick={() => setShowForm(false)}>
+                Cancel
+              </button>
+              <button className="button primary">Save customer</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <div className="panel table-panel">
+        <table>
+          <thead>
+            <tr>
+              <th>Customer</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Follow-up</th>
+              <th>Contact</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {customers.map((customer) => (
+              <tr key={customer.id}>
+                <td>
+                  <div className="table-person">
+                    <div className="avatar pale">{customer.name[0]}</div>
+                    <div>
+                      <b>{customer.name}</b>
+                      <span>{customer.business_name || 'Independent customer'}</span>
+                    </div>
+                  </div>
+                </td>
+                <td><span className="tag">{label(customer.customer_type)}</span></td>
+                <td><span className={`status ${customer.status}`}>{label(customer.status)}</span></td>
+                <td>
+                  {customer.follow_up_date
+                    ? new Date(customer.follow_up_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
+                    : '—'}
+                </td>
+                <td>{customer.mobile}</td>
+                <td>
+                  <button className="text-button" onClick={() => setSelected(customer)}>
+                    View
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!customers.length && <Empty text="No customers yet" />}
+      </div>
+
+      {selected && <Detail customer={selected} close={() => setSelected(null)} />}
+    </>
+  );
+}
+
+function Detail({ customer, close }) {
+  const [note, setNote] = useState('');
+  const [followUps, setFollowUps] = useState(customer.follow_ups || []);
+
+  const addNote = async () => {
+    if (!note.trim()) return;
+    const added = await api(`/customers/${customer.id}/follow-ups`, {
+      method: 'POST',
+      body: JSON.stringify({ note })
+    });
+    setFollowUps([added, ...followUps]);
+    setNote('');
+  };
+
+  return (
+    <div className="modal-backdrop">
+      <div className="modal">
+        <div className="form-header">
+          <div>
+            <div className="eyebrow">CUSTOMER DETAIL</div>
+            <h2>{customer.name}</h2>
+          </div>
+          <button className="icon-button" onClick={close}>×</button>
+        </div>
+        <div className="detail-grid">
+          <div><span>Business</span><b>{customer.business_name || '—'}</b></div>
+          <div><span>Mobile</span><b>{customer.mobile}</b></div>
+          <div><span>Type</span><b>{label(customer.customer_type)}</b></div>
+          <div><span>Status</span><b>{label(customer.status)}</b></div>
+        </div>
+        <hr />
+        <h3>Follow-up notes</h3>
+        {followUps.map((item) => (
+          <div className="note" key={item.id}>
+            <b>{item.note}</b>
+            <span>{new Date(item.created_at).toLocaleDateString()}</span>
+          </div>
+        ))}
+        <div className="note-entry">
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Add a note…"
+          />
+          <button className="button primary" onClick={addNote}>
+            Add note
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Inventory Component ──────────────────────────────────────
+function Inventory({ user }) {
+  const [products, setProducts] = useState([]);
+  const [search, setSearch] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const canEdit = ['admin', 'warehouse'].includes(user.role);
+
+  const load = () => {
+    api(`/products?search=${encodeURIComponent(search)}`)
+      .then(setProducts)
+      .catch(console.error);
+  };
+
+  useEffect(load, [search]);
+
+  const save = async (event) => {
+    event.preventDefault();
+    await api('/products', {
+      method: 'POST',
+      body: JSON.stringify(Object.fromEntries(new FormData(event.target)))
+    });
+    setShowForm(false);
+    load();
+  };
+
+  return (
+    <>
+      <div className="page-heading">
+        <div>
+          <div className="eyebrow">WAREHOUSE CONTROL</div>
+          <h1>Inventory</h1>
+          <p className="muted">Know what’s available before it moves.</p>
+        </div>
+        {canEdit && (
+          <button className="button primary" onClick={() => setShowForm(true)}>
+            + Add product
+          </button>
+        )}
+      </div>
+
+      <div className="toolbar">
+        <div className="search">
+          ⌕
+          <input
+            placeholder="Search product, SKU, category"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <span className="result-count">{products.length} products</span>
+      </div>
+
+      {showForm && (
+        <div className="panel form-panel">
+          <form onSubmit={save}>
+            <div className="form-header">
+              <h3>New product</h3>
+              <button type="button" className="icon-button" onClick={() => setShowForm(false)}>×</button>
+            </div>
+            <div className="form-grid">
+              <label>
+                Product name *
+                <input name="name" required />
+              </label>
+              <label>
+                SKU / Code *
+                <input name="sku" required />
+              </label>
+              <label>
+                Category
+                <input name="category" />
+              </label>
+              <label>
+                Unit price (₹)
+                <input name="unit_price" type="number" min="0" step="0.01" />
+              </label>
+              <label>
+                Opening stock
+                <input name="opening_stock" type="number" min="0" />
+              </label>
+              <label>
+                Minimum alert quantity
+                <input name="min_stock_alert" type="number" min="0" />
+              </label>
+              <label className="wide">
+                Warehouse / location
+                <input name="location" />
+              </label>
+            </div>
+            <div className="form-actions">
+              <button type="button" className="button" onClick={() => setShowForm(false)}>
+                Cancel
+              </button>
+              <button className="button primary">Save product</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <div className="panel table-panel">
+        <table>
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>SKU</th>
+              <th>Category</th>
+              <th>Price</th>
+              <th>Current stock</th>
+              <th>Location</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {products.map((product) => {
+              const isLow = product.current_stock <= product.min_stock_alert;
+              return (
+                <tr key={product.id}>
+                  <td><b>{product.name}</b></td>
+                  <td><code>{product.sku}</code></td>
+                  <td>{product.category || '—'}</td>
+                  <td>{money(product.unit_price)}</td>
+                  <td>
+                    <span className={isLow ? 'stock low' : 'stock'}>
+                      {product.current_stock} <small>units</small>
+                    </span>
+                  </td>
+                  <td>{product.location || '—'}</td>
+                  <td>{isLow && <span className="status inactive">Low</span>}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {!products.length && <Empty text="No products yet" />}
+      </div>
+    </>
+  );
+}
+
+// ── Sales Challans Component ─────────────────────────────────
+function Challans({ user }) {
+  const [challans, setChallans] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState('');
+  const [customer, setCustomer] = useState('');
+  const [items, setItems] = useState([]);
+  const canEdit = ['admin', 'sales'].includes(user.role);
+
+  const load = () => {
+    Promise.all([
+      api('/challans').then(setChallans),
+      api('/customers').then(setCustomers),
+      api('/products').then(setProducts)
+    ]).catch(console.error);
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const addItem = () => {
+    const product = products.find((item) => item.id === selectedProduct);
+    if (product && !items.find((item) => item.product_id === product.id)) {
+      setItems([...items, { product_id: product.id, product_name: product.name, quantity: 1 }]);
+    }
+    setSelectedProduct('');
+  };
+
+  const create = async (status) => {
+    if (!customer || !items.length) return;
+    await api('/challans', {
+      method: 'POST',
+      body: JSON.stringify({ customer_id: customer, items, status })
+    });
+    setItems([]);
+    setCustomer('');
+    setShowForm(false);
+    load();
+  };
+
+  const confirm = async (id) => {
+    await api(`/challans/${id}/confirm`, { method: 'POST' });
+    load();
+  };
+
+  return (
+    <>
+      <div className="page-heading">
+        <div>
+          <div className="eyebrow">DISPATCH OPERATIONS</div>
+          <h1>Sales challans</h1>
+          <p className="muted">Prepare and track every customer dispatch.</p>
+        </div>
+        {canEdit && (
+          <button className="button primary" onClick={() => setShowForm(true)}>
+            + New challan
+          </button>
+        )}
+      </div>
+
+      {showForm && (
+        <div className="panel form-panel">
+          <div className="form-header">
+            <h3>Create sales challan</h3>
+            <button className="icon-button" onClick={() => setShowForm(false)}>×</button>
+          </div>
+          <label>
+            Customer
+            <select value={customer} onChange={(e) => setCustomer(e.target.value)}>
+              <option value="">Select customer</option>
+              {customers.map((item) => (
+                <option value={item.id} key={item.id}>
+                  {item.name} · {item.business_name || 'Personal'}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="add-product-row">
+            <select value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)}>
+              <option value="">Add products</option>
+              {products.map((item) => (
+                <option value={item.id} key={item.id}>
+                  {item.name} · {item.current_stock} in stock
+                </option>
+              ))}
+            </select>
+            <button className="button" type="button" onClick={addItem}>Add</button>
+          </div>
+          {items.map((item, index) => (
+            <div className="line-item" key={item.product_id}>
+              <b>{item.product_name}</b>
+              <input
+                type="number"
+                min="1"
+                value={item.quantity}
+                onChange={(e) =>
+                  setItems(
+                    items.map((row, rowIndex) =>
+                      rowIndex === index ? { ...row, quantity: Number(e.target.value) } : row
+                    )
+                  )
+                }
+              />
+              <button
+                type="button"
+                onClick={() => setItems(items.filter((row) => row.product_id !== item.product_id))}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          <div className="form-actions">
+            <button className="button" type="button" onClick={() => create('draft')}>
+              Save draft
+            </button>
+            <button className="button primary" type="button" onClick={() => create('confirmed')}>
+              Save & confirm
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="panel table-panel">
+        <table>
+          <thead>
+            <tr>
+              <th>Challan</th>
+              <th>Customer</th>
+              <th>Items</th>
+              <th>Total qty</th>
+              <th>Status</th>
+              <th>Date</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {challans.map((item) => (
+              <tr key={item.id}>
+                <td><code>{item.challan_number}</code></td>
+                <td>
+                  <b>{item.customers?.name || '—'}</b>
+                  <span className="subtext">{item.customers?.business_name}</span>
+                </td>
+                <td>{item.challan_items?.length || 0} products</td>
+                <td>{item.total_quantity}</td>
+                <td><span className={`status ${item.status}`}>{label(item.status)}</span></td>
+                <td>
+                  {new Date(item.created_at).toLocaleDateString('en-IN', {
+                    day: '2-digit',
+                    month: 'short'
+                  })}
+                </td>
+                <td>
+                  {item.status === 'draft' && canEdit && (
+                    <button className="text-button" onClick={() => confirm(item.id)}>
+                      Confirm
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!challans.length && <Empty text="No challans yet" />}
+      </div>
+    </>
+  );
+}
+
+function Empty({ text }) {
+  return (
+    <div className="empty">
+      {text}
+      <span>Create your first record to see it here.</span>
+    </div>
+  );
+}
 
 createRoot(document.getElementById('root')).render(<App />);
