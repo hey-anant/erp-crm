@@ -4,7 +4,7 @@ A modern full-stack ERP & CRM web application designed for wholesale, distributi
 
 ---
 
-##  Core Features (Case Study Compliant)
+##  Core Features
 
 - **JWT Authentication & RBAC**: Admin, Sales, Warehouse, and Accounts roles with permissions.
 - **Customer CRM**:
@@ -28,7 +28,7 @@ A modern full-stack ERP & CRM web application designed for wholesale, distributi
 
 ---
 
-## 👥 Test Accounts
+##  Test Accounts
 
 All demo accounts use password: `password123`
 
@@ -41,7 +41,7 @@ All demo accounts use password: `password123`
 
 ---
 
-## 🗄️ Database Setup (Supabase PostgreSQL)
+##  Database Setup (Supabase PostgreSQL)
 
 1. Open your [Supabase Dashboard](https://supabase.com).
 2. Run the SQL schema in **SQL Editor**:
@@ -50,7 +50,7 @@ All demo accounts use password: `password123`
 
 ---
 
-## 🚀 Local Development
+##  Local Development
 
 1. Install dependencies:
    ```bash
@@ -75,7 +75,7 @@ All demo accounts use password: `password123`
 
 ---
 
-## 📄 Postman Collection & API Documentation
+##  Postman Collection & API Documentation
 
 A pre-configured Postman Collection is included in the project root:
 - [`postman_collection.json`](file:///c:/Users/anant/Downloads/erp-crm-main/postman_collection.json)
@@ -84,9 +84,8 @@ Import this JSON into Postman to test all Authentication, Customer, Product, Sto
 
 ---
 
-## 🌐 Vercel Deployment
+##  Vercel Deployment
 
-Pre-configured with [`vercel.json`](file:///c:/Users/anant/Downloads/erp-crm-main/vercel.json) and [`api/index.js`](file:///c:/Users/anant/Downloads/erp-crm-main/api/index.js):
 1. Push code to GitHub repository.
 2. Import project in Vercel.
 3. Set environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `JWT_SECRET`.
